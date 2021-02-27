@@ -1,0 +1,78 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+
+use Http\Discovery\Psr17FactoryDiscovery;
+use Http\Discovery\Psr18ClientDiscovery;
+use Johmanx10\Library\SongSynchronizer;
+use Johmanx10\Ocremix\Downloader;
+use Johmanx10\Rainwave\Api\Authentication;
+use Johmanx10\Rainwave\Api\Client;
+use Johmanx10\Rainwave\Api\RequestFactory;
+use Johmanx10\Rainwave\Station\Station;
+use League\Flysystem\Filesystem;
+use League\Flysystem\Local\LocalFilesystemAdapter;
+use Symfony\Component\Console\Application;
+use Symfony\Component\Console\Input\ArgvInput;
+use Symfony\Component\Console\Input\InputArgument;
+use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Output\ConsoleOutput;
+use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Style\SymfonyStyle;
+use Symfony\Component\Dotenv\Dotenv;
+
+require_once __DIR__ . '/../vendor/autoload.php';
+
+$application = new Application('Rainwave > OCReMix favorites');
+
+$env = new Dotenv();
+$env->load(__DIR__ . '/../.env');
+
+$client = Psr18ClientDiscovery::find();
+$requestFactory = Psr17FactoryDiscovery::findRequestFactory();
+
+$api = new Client(
+    $client,
+    new RequestFactory(
+        Station::OCReMix(),
+        Authentication::fromEnv(),
+        $requestFactory,
+        Psr17FactoryDiscovery::findStreamFactory()
+    )
+);
+
+$syncCommand = $application->register('library:sync');
+$syncCommand->setDescription(
+        'Synchronize your library with your Rainwave OCReMix favorites.'
+);
+$syncCommand->getDefinition()->addArgument(
+    new InputArgument(
+        'path',
+        InputArgument::REQUIRED,
+        'The path to your library'
+    )
+);
+$syncCommand->setCode(
+    function (
+        InputInterface $input,
+        OutputInterface $output
+    ) use ($api, $client, $requestFactory): void {
+        $io = new SymfonyStyle($input, $output);
+
+        $io->title('Synchronizing library');
+
+        $api->walkFavorites(
+            new SongSynchronizer(
+                new Downloader($client, $requestFactory),
+                new Filesystem(
+                    new LocalFilesystemAdapter(
+                        $input->getArgument('path')
+                    )
+                ),
+                $io
+            )
+        );
+    }
+);
+
+$application->run(new ArgvInput(), new ConsoleOutput());
