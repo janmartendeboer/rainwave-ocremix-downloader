@@ -94,12 +94,19 @@ final class Client
         static $size = 100;
         $page = 0;
 
+        $seen = [];
+
         do {
             $data = $this->process(
                 $this->factory->allFaves($size, ++$page)
             );
 
             foreach ($data['all_faves'] ?? [] as $favorite) {
+                if (array_key_exists($favorite['id'], $seen)) {
+                    continue;
+                }
+
+                $seen[$favorite['id']] = true;
                 $song = $this->getSong($favorite['id']);
 
                 if ($song !== null) {
