@@ -30,9 +30,14 @@ class SongSynchronizer implements SongListenerInterface
             sprintf(
                 'Syncing %s %s',
                 $remix,
-                $song->title
+                $song->url
             )
         );
+
+        if (strpos($remix, 'OCR') !== 0) {
+            $this->output->error('URL structure is not supported!');
+            return;
+        }
 
         if ($this->filesystem->fileExists($mainFile)) {
             $this->output->success(
